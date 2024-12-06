@@ -1,4 +1,5 @@
 import subprocess
+import socket
 
 
 def get_hostnames_from_dhcp_lease():
@@ -16,7 +17,6 @@ def get_hostnames_from_dhcp_lease():
         print(f"No se encontró el archivo {lease_file}.")
         return {}
 
-import socket
 
 def get_hostname_from_ip(ip_address):
     try:
@@ -36,8 +36,8 @@ def get_connected_users():
             # Las MACs son las únicas líneas formateadas como direcciones
             if line and ':' in line and len(line.split(':')) == 6:
                 clients.append(line.strip())  # Extrae y limpia la MAC
-                get_hostname_from_ip(line.strip())
-                get_hostnames_from_dhcp_lease(line.strip())
+                # get_hostname_from_ip(line.strip())
+                # get_hostnames_from_dhcp_lease()
         return clients
     except Exception as e:
         print(f"Error: {e}")
