@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
 
-from app.Services.hostapd import get_connected_users
+from app.Services.hostapd import get_hostnames_from_dhcp_lease
 
 main = Blueprint('main', __name__)
 
@@ -14,4 +14,4 @@ def status():
 
 @main.route('/connected-users')
 def users():
-    return jsonify({"users": get_connected_users()})
+    return jsonify({"users": get_hostnames_from_dhcp_lease()})
