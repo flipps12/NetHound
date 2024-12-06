@@ -12,6 +12,6 @@ def home():
 def status():
     return jsonify({"status": "OK", "version": "1.0"})
 
-@main.route('/users')
-def status():
+@main.route('/connected-users')
+def users():
     return jsonify({"users": get_connected_users()})
