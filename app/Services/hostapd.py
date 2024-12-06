@@ -37,7 +37,7 @@ def get_connected_users():
             if line and ':' in line and len(line.split(':')) == 6:
                 clients.append(line.strip())  # Extrae y limpia la MAC
                 # get_hostname_from_ip(line.strip())
-                # get_hostnames_from_dhcp_lease()
+                print(get_hostnames_from_dhcp_lease())
         return clients
     except Exception as e:
         print(f"Error: {e}")
