@@ -2,7 +2,7 @@ import subprocess
 
 def get_connected_users():
     try:
-        output = subprocess.check_output(['hostapd_cli', 'all_sta']).decode()
+        output = subprocess.check_output(['sudo', 'hostapd_cli', 'all_sta']).decode()
         clients = []
         for line in output.split("\n"):
             if line.startswith("Station"):
