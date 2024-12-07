@@ -1,0 +1,9 @@
+{
+  "user": "admin",
+  "password": "",
+  "roles": {
+    "admin": {},
+    "user": {},
+    "blacklist": {}
+  }
+}

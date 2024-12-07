@@ -14,4 +14,4 @@ def status():
 
 @main.route('/connected-users')
 def users():
-    return jsonify({"users": get_hostnames_from_dhcp_lease()})
+    return get_hostnames_from_dhcp_lease()
