@@ -13,7 +13,10 @@ mod launcher;
 
 use core::*;
 
+use colored::Colorize;
+
 fn main() {
-    println!("NetHound -  {}", env!("CARGO_PKG_VERSION"));
+    print!("\x1B[2J\x1B[H");
+    println!("{}", format!("NetHound -  {}", env!("CARGO_PKG_VERSION")).bold().cyan());
     launcher::launch();
 }
