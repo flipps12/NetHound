@@ -14,6 +14,6 @@ mod launcher;
 use core::*;
 
 fn main() {
-    println!("Hello, world!");
+    println!("NetHound -  {}", env!("CARGO_PKG_VERSION"));
     launcher::launch();
 }
