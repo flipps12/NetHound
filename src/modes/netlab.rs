@@ -1,6 +1,7 @@
 use crate::core::event_bus::{Event, EventBus};
 use crate::core::packet_data::PacketData;
 use crate::core::packet_processor::PacketProcessor;
+use crate::core::utils::get_interfaces::get_interfaces;
 
 use colored::Colorize;
 use std::io::{self, Write};
@@ -70,34 +71,9 @@ pub fn restore_firewall() {
 #[tokio::main]
 pub async fn run() {
     // Define network interface to capture packets
-
-    let mut interfaces: Vec<String> = Vec::new();
     let output = Command::new("ip").arg("a").output();
-    match output {
-        Ok(o) => {
-            let output_str = String::from_utf8_lossy(&o.stdout);
-            interfaces = output_str
-                .lines()
-                .filter_map(|line| {
-                    if line.contains(": ") {
-                        Some(
-                            line.split(": ")
-                                .nth(1)
-                                .unwrap()
-                                .split_whitespace()
-                                .next()
-                                .unwrap()
-                                .to_string(),
-                        )
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-        }
-        Err(e) => eprintln!("Error: {:?}", e),
-    }
 
+    let interfaces = get_interfaces();
     let mut i = 0;
     for interface in &interfaces {
         print!("{} ", i.to_string().green());
