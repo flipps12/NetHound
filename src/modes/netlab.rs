@@ -71,7 +71,6 @@ pub fn restore_firewall() {
 #[tokio::main]
 pub async fn run() {
     // Define network interface to capture packets
-    let output = Command::new("ip").arg("a").output();
 
     let interfaces = get_interfaces();
     let mut i = 0;
