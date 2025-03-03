@@ -1,0 +1,11 @@
+[package]
+name = "NetHound"
+version = "0.1.0-alpha"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.43.0", features = ["full"] }
+pnet = "0.35.0"
+pcap = "2.2.0"
+tun-tap = "0.1.4"
+colored = "3.0.0"
