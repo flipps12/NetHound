@@ -5,7 +5,7 @@ use std::io::{self, Write};
 
 pub fn launch() {
     let modes = vec!["NetLab".green(), "NetSecure".red(), "NetCrack".red()];
-    let mut i = 0;
+    let mut i = 1;
     for mode in &modes {
         println!("  {}", format!("{} - {}", i.to_string().cyan(), mode).bold());
         i += 1;

@@ -9,6 +9,42 @@ use std::process::Command; // , ptr::null
 use std::sync::Arc;
 use tokio::task;
 
+fn switch_mode(mode: i16, interface_w: String, interface_l: String) {
+    match mode {
+        1 => {
+            let commands = [
+                "sysctl -w net.ipv4.ip_forward=1",
+                "iptables -t nat -F",
+                "iptables -F",
+                "iptables -X",
+                &format!("ip link set {} master br0", interface_l),
+                &format!("ip link set {} master br0", interface_w),
+                "sudo ip addr add 192.168.1.1/24 dev br0",
+                "systemctl stop dnsmasq",
+                "ip link add name br0 type bridge",
+                "ip link set br0 up",
+                &format!("iptables -t nat -A POSTROUTING -o {} -j MASQUERADE", interface_l),
+                &format!("iptables -A FORWARD -i {} -o {} -j ACCEPT", interface_w, interface_l),
+                &format!("iptables -A FORWARD -i {} -o {} -m state --state RELATED,ESTABLISHED -j ACCEPT", interface_l, interface_w),
+                &format!("ip link set {} master br0", interface_w),
+                "ip link set br0 up",
+            ];
+
+            for cmd in commands.iter() {
+                Command::new("sh")
+                    .arg("-c")
+                    .arg(cmd)
+                    .spawn()
+                    .expect("Error starting NetLab");
+            }
+        }
+        2 => {}
+        _ => {
+            println!("Invalid mode");
+        }
+    }
+}
+
 fn update_firewall(packet: &PacketData) {
     if let Some(ref src_ip) = packet.src_ip {
         println!("Blocking traffic from IP: {}", src_ip);
@@ -16,10 +52,7 @@ fn update_firewall(packet: &PacketData) {
             .args(&["iptables", "-I", "INPUT", "-s", src_ip, "-j", "DROP"])
             .output();
         match output {
-            Ok(o) => println!(
-                "Firewall updated: {:?}",
-                String::from_utf8_lossy(&o.stdout)
-            ),
+            Ok(o) => println!("Firewall updated: {:?}", String::from_utf8_lossy(&o.stdout)),
             Err(e) => eprintln!("Error updating firewall: {:?}", e),
         }
     } else {
@@ -73,7 +106,7 @@ pub async fn run() {
     // Define network interface to capture packets
 
     let interfaces = get_interfaces();
-    let mut i = 0;
+    let mut i = 1;
     for interface in &interfaces {
         print!("{} ", i.to_string().green());
         print!("{} \n", interface.cyan());
@@ -88,6 +121,9 @@ pub async fn run() {
     let interface_index: usize = buffer.trim().parse::<usize>().unwrap();
     let interface_name = interfaces[interface_index].clone();
 
+    // Define NetLab mode
+    switch_mode(1, "wlan0".to_string(), "eth0".to_string());
+
     // Create shared EventBus
     let event_bus = Arc::new(EventBus::new());
     let mut subscriber = event_bus.subscribe();
@@ -97,7 +133,10 @@ pub async fn run() {
     tokio::spawn(async move {
         while let Ok(event) = subscriber.recv().await {
             print!("\x1B[2J\x1B[H");
-            println!("Intercepting packet in {}", format!("{}", interface_name_clone).green());
+            println!(
+                "Intercepting packet in {}",
+                format!("{}", interface_name_clone).green()
+            );
             println!("CPU Temperature: {}", get_temp().red());
             match event {
                 Event::PacketReceived(data) => {
