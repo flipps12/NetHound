@@ -14,31 +14,72 @@ fn switch_mode(mode: i16, interface_w: String, interface_l: String) {
         1 => {
             let commands = [
                 "sysctl -w net.ipv4.ip_forward=1",
+                
+                // Limpiar las reglas previas de iptables
                 "iptables -t nat -F",
                 "iptables -F",
                 "iptables -X",
-                &format!("ip link set {} master br0", interface_l),
-                &format!("ip link set {} master br0", interface_w),
-                "sudo ip addr add 192.168.1.1/24 dev br0",
+                
+                // Crear el bridge si no existe
+                "ip link add name br0 type bridge || true",
+                
+                // Detener servicios potencialmente conflictivos
                 "systemctl stop dnsmasq",
-                "ip link add name br0 type bridge",
+    
+                // Asignar interfaces al bridge
+                &format!("ip link set {} master br0", interface_w),
+                &format!("ip link set {} master br0", interface_l),
+    
+                // Asignar IP al bridge y habilitar la interfaz
+                "ip addr flush dev br0",
+                "ip addr add 192.168.0.14/24 dev br0",
                 "ip link set br0 up",
+
+                // Configuración de NAT y reenvío de paquetes
                 &format!("iptables -t nat -A POSTROUTING -o {} -j MASQUERADE", interface_l),
                 &format!("iptables -A FORWARD -i {} -o {} -j ACCEPT", interface_w, interface_l),
                 &format!("iptables -A FORWARD -i {} -o {} -m state --state RELATED,ESTABLISHED -j ACCEPT", interface_l, interface_w),
-                &format!("ip link set {} master br0", interface_w),
-                "ip link set br0 up",
             ];
-
+    
             for cmd in commands.iter() {
                 Command::new("sh")
                     .arg("-c")
                     .arg(cmd)
                     .spawn()
-                    .expect("Error starting NetLab");
+                    .expect("Error starting Bridge Mode");
             }
         }
-        2 => {}
+        2 => {
+            let commands = [
+                "sysctl -w net.ipv4.ip_forward=1",
+                "iptables -t nat -F",
+                "iptables -F",
+                "iptables -X",
+                
+                // Configuración para modo aislado
+                &format!("ip addr flush dev {}", interface_w),
+                
+                // Asignar IP estática directamente a wlan0
+                &format!("ip addr add 192.168.10.1/24 dev {}", interface_w),
+                &format!("ip link set {} up", interface_w),
+                
+                // Configurar NAT y reglas de iptables
+                &format!("iptables -t nat -A POSTROUTING -o {} -j MASQUERADE", interface_l),
+                &format!("iptables -A FORWARD -i {} -o {} -j ACCEPT", interface_w, interface_l),
+                &format!("iptables -A FORWARD -i {} -o {} -m state --state RELATED,ESTABLISHED -j ACCEPT", interface_l, interface_w),
+                
+                // Aislamiento total de la red Wi-Fi
+                &format!("iptables -A FORWARD -i {} -o {} -j DROP", interface_w, interface_w),
+            ];
+    
+            for cmd in commands.iter() {
+                Command::new("sh")
+                    .arg("-c")
+                    .arg(cmd)
+                    .spawn()
+                    .expect("Error starting Isolated Mode");
+            }
+        }
         _ => {
             println!("Invalid mode");
         }
@@ -119,7 +160,7 @@ pub async fn run() {
         .read_line(&mut buffer)
         .expect("Error at reading input");
     let interface_index: usize = buffer.trim().parse::<usize>().unwrap();
-    let interface_name = interfaces[interface_index].clone();
+    let interface_name = interfaces[interface_index - 1].clone();
 
     // Define NetLab mode
     switch_mode(1, "wlan0".to_string(), "eth0".to_string());

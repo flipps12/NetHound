@@ -20,7 +20,7 @@ pub fn launch() {
     let mode_index: usize = buffer.trim().parse::<usize>().unwrap();
     
     match mode_index {
-        0 => modes::netlab::run(),
+        1 => modes::netlab::run(),
         _ => println!("Not implemented yet"),
     }
 
