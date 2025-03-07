@@ -149,7 +149,7 @@ pub async fn run() {
     let interfaces = get_interfaces();
     let mut i = 1;
     for interface in &interfaces {
-        print!("{} ", i.to_string().green());
+        print!("    {} - ", i.to_string().green());
         print!("{} \n", interface.cyan());
         i += 1;
     }
@@ -163,7 +163,18 @@ pub async fn run() {
     let interface_name = interfaces[interface_index - 1].clone();
 
     // Define NetLab mode
-    switch_mode(1, "wlan0".to_string(), "eth0".to_string());
+    let mut buffer2 = String::new();
+    print!("    {} - ", "1".cyan());
+    print!("Bridge Mode\n");
+    print!("    {} - ", "2".cyan());
+    print!("Isolated Mode\n");
+    print!("Select NetLab mode: ");
+    io::stdout().flush().expect("Error at flushing stdout");
+    io::stdin()
+        .read_line(&mut buffer2)
+        .expect("Error at reading input");
+    let mode: i16 = buffer2.trim().parse::<i16>().unwrap();
+    switch_mode(mode, "wlan0".to_string(), "eth0".to_string());
 
     // Create shared EventBus
     let event_bus = Arc::new(EventBus::new());
