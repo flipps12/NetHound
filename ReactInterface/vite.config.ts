@@ -8,4 +8,9 @@ export default defineConfig({
     tailwindcss(),
     react()
   ],
+  server: {
+    port: 8080,
+    host: true, // esto permite que sea accesible desde otras IPs
+    allowedHosts: ["captive.portal.local"]
+  },
 })

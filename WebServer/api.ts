@@ -87,15 +87,17 @@ router.delete('/delete/:id', (req: Request, res: Response) => { // añadir segur
 router.get('/verify', async (req: Request<{}, {}, {}, { mac?: string; ip?: string }>, res: Response): Promise<void> => {
     const { mac, ip } = req.query;
     console.log(mac, ip);
-    if (!mac || !ip) {
-        res.status(400).send("Faltan parámetros (mac o ip)");
-        return;
-    }
-    db.get("SELECT * FROM devices WHERE ip = ? AND mac = ?", [ip, mac], (err, row) => {
+    // if (!mac || !ip) {
+    //     res.status(400).send("Faltan parámetros (mac o ip)");
+    //     return;
+    // }
+    db.get("SELECT * FROM devices WHERE ip = ?", [ip], (err, row) => {// AND mac = ?
         if (err) {
+            console.error(err);
             res.status(500).json({ error: err.message });
             return;
         }
+        console.log(!!row);
         res.json({ authorized: !!row });
     });
 });

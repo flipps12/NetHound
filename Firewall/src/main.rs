@@ -24,8 +24,45 @@ impl Firewall {
     }
 
     fn block_all(&self) {
+        // Política por defecto: bloquear todo el tráfico reenviado
         run_command("iptables", &["-P", "FORWARD", "DROP"]);
-        println!("🚫 Todas las IPs han sido bloqueadas por defecto.");
+
+        // Eliminar reglas existentes en FORWARD
+        run_command("iptables", &["-F", "FORWARD"]);
+
+        // Permitir tráfico de retorno de conexiones válidas
+        run_command(
+            "iptables",
+            &[
+                "-A",
+                "FORWARD",
+                "-m",
+                "conntrack",
+                "--ctstate",
+                "RELATED,ESTABLISHED",
+                "-j",
+                "ACCEPT",
+            ],
+        );
+
+        // Habilitar NAT para compartir internet
+        run_command(
+            "iptables",
+            &[
+                "-t",
+                "nat",
+                "-A",
+                "POSTROUTING",
+                "-o",
+                "eth0",
+                "-j",
+                "MASQUERADE",
+            ],
+        );
+
+        println!(
+            "🚫 Todo el tráfico está bloqueado salvo IPs autorizadas y conexiones existentes."
+        );
     }
 
     fn is_private_ip(ip: &str) -> bool {
@@ -35,7 +72,7 @@ impl Firewall {
     async fn check_authorization(&self, mac: &str, ip: &str) -> bool {
         let url = format!("{}/verify?mac={}&ip={}", SERVER_WEB, mac, ip);
         println!("🔗 Consultando: {}", url);
-        
+
         if let Ok(response) = reqwest::get(&url).await {
             if let Ok(body) = response.text().await {
                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
@@ -55,7 +92,7 @@ impl Firewall {
 
     async fn check_authorization_ip(&self, ip: &str) -> bool {
         let url = format!("{}/onlyip?ip={}", SERVER_WEB, ip);
-        
+
         if let Ok(response) = reqwest::get(&url).await {
             if let Ok(body) = response.text().await {
                 if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
@@ -64,6 +101,8 @@ impl Firewall {
                         self.allowed_ips.insert(ip.to_string(), authorized);
                         if authorized {
                             self.unblock_ip(ip);
+                        } else {
+                            self.block_ip(ip);
                         }
                         return authorized;
                     }
@@ -74,13 +113,45 @@ impl Firewall {
     }
 
     fn unblock_ip(&self, ip: &str) {
-        run_command("iptables", &["-I", "FORWARD", "-s", ip, "-j", "ACCEPT"]);
-        println!("🚀 IP autorizada: {}", ip);
+        // Eliminamos posibles reglas repetidas previas
+        let _ = run_command(
+            "iptables",
+            &[
+                "-D", "FORWARD", "-s", ip, "-i", "wlan0", "-o", "eth0", "-j", "ACCEPT",
+            ],
+        );
+
+        // Insertamos la nueva regla
+        run_command(
+            "iptables",
+            &[
+                "-I", "FORWARD", "-s", ip, "-i", "wlan0", "-o", "eth0", "-j", "ACCEPT",
+            ],
+        );
+
+        println!("🚀 IP autorizada para pasar de wlan0 a eth0: {}", ip);
+    }
+
+    fn block_ip(&self, ip: &str) {
+        run_command(
+            "iptables",
+            &[
+                "-D", "FORWARD", "-s", ip, "-i", "wlan0", "-o", "eth0", "-j", "ACCEPT",
+            ],
+        );
+        println!(
+            "⛔️ IP bloqueada (acceso desde wlan0 a eth0 denegado): {}",
+            ip
+        );
     }
 }
 
 fn run_command(command: &str, args: &[&str]) {
-    let status = Command::new("sudo").arg(command).args(args).status().expect("Error ejecutando el comando");
+    let status = Command::new("sudo")
+        .arg(command)
+        .args(args)
+        .status()
+        .expect("Error ejecutando el comando");
     if status.success() {
         println!("✅ Comando ejecutado: {} {:?}", command, args);
     } else {
@@ -105,12 +176,22 @@ async fn main() {
         println!("🔄 Iniciando verificación de IPs...");
         let mut interval = time::interval(CHECK_INTERVAL);
         loop {
-            print!("🔄 Esperando {} segundos para verificar IPs...", CHECK_INTERVAL.as_secs());
+            print!(
+                "🔄 Esperando {} segundos para verificar IPs...",
+                CHECK_INTERVAL.as_secs()
+            );
             interval.tick().await;
             println!("🔄 {:?}", firewall_clone.allowed_ips);
-            let ips: Vec<String> = firewall_clone.allowed_ips.iter().map(|entry| entry.key().clone()).collect();
+            let ips: Vec<String> = firewall_clone
+                .allowed_ips
+                .iter()
+                .map(|entry| entry.key().clone())
+                .collect();
             for ip in ips {
-                println!("🔄 Verificando IP: {:?}", firewall_clone.check_authorization_ip(&ip).await);
+                println!(
+                    "🔄 Verificando IP: {:?}",
+                    firewall_clone.check_authorization_ip(&ip).await
+                );
             }
         }
     });
@@ -127,8 +208,10 @@ async fn main() {
                         if lines.len() >= 2 {
                             let ip = lines[0];
                             let mac = lines[1];
-                            
-                            if Firewall::is_private_ip(ip) && ip != "192.168.1.1" && ip != "0.0.0.0" {
+
+                            if Firewall::is_private_ip(ip) && ip != "192.168.1.1" && ip != "0.0.0.0"
+                            {
+                                println!("🔗 IP: {} MAC: {}", ip, mac);
                                 if firewall_clone.allowed_ips.contains_key(ip) {
                                     if *firewall_clone.allowed_ips.get(ip).unwrap() {
                                         firewall_clone.unblock_ip(ip);

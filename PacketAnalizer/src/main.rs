@@ -216,7 +216,7 @@ pub async fn run() {
 
                         // Toggle LED on packet received
                         led3.set_high();
-                        sleep(Duration::from_millis(100));
+                        sleep(Duration::from_millis(500));
                         led1.set_low();
                         led2.set_low();
                         led3.set_low();
