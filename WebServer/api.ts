@@ -51,6 +51,12 @@ router.get('/user/:user', (req: Request, res: Response) => {
 // Verify
 router.post('/login', async (req: Request, res: Response) => {
     const { username, password, ip, mac } = req.body;
+    console.log(username, password, ip, mac);
+    if (!username || !password || !ip) { // || !mac
+        res.status(400).send("Faltan parámetros (username, password o ip)");
+        return;
+    }
+    // Check if the user exists
     db.get("SELECT password FROM devices WHERE username = ?", [username], async (err, row: { password: string } | undefined) => {
         if (err) {
             return res.status(500).json({ error: err.message });

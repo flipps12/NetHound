@@ -12,22 +12,27 @@ function App() {
     const ip = queryParams.get('ip');
 
     console.log('Query parameters:', { mac, ip });
-    axios.post('http://localhost:8080/api/login', {
+    axios.post('http://192.168.1.1/api/login', {
       username,
       password,
-      mac,
+      //mac,
       ip
     })
-    .then(response => {
-      console.log('Login successful', response.data);
-      // Handle successful login, e.g., redirect to dashboard
-    }
-    )
-    .catch(error => {
-      console.error('Login failed', error);
-      // Handle login failure, e.g., show an error message
-    }
-    );
+      .then(response => {
+        console.log('Login successful', response.data);
+        if (response.data.verified) {
+          console.log('Login successful');
+          // Redirect to success page
+          window.location.href = `http://localhost:8080/success?ip=${ip}`;
+        } else {
+          console.error('Login failed');
+          alert('Login failed');
+        }
+      })
+      .catch(error => {
+        console.error('Login failed', error.response?.data || error.message);
+      });
+    console.log('Login request sent');
   };
 
   return (

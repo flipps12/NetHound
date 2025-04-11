@@ -5,6 +5,7 @@ use std::os::unix::net::UnixListener;
 use std::process::Command;
 use std::sync::Arc;
 use tokio::time::{self, Duration};
+use std::net::UdpSocket;
 
 const SERVER_WEB: &str = "http://localhost/api";
 const CHECK_INTERVAL: Duration = Duration::from_secs(5);
@@ -158,11 +159,24 @@ fn run_command(command: &str, args: &[&str]) {
         eprintln!("❌ Error ejecutando: {} {:?}", command, args);
     }
 }
+fn get_private_ip() -> String {
+
+    let socket = UdpSocket::bind("0.0.0.0:0").expect("No se pudo crear el socket");
+    socket
+        .connect("8.8.8.8:80")
+        .expect("No se pudo conectar al socket");
+    if let Ok(local_addr) = socket.local_addr() {
+        return local_addr.ip().to_string();
+    }
+    "0.0.0.0".to_string()
+}
 
 #[tokio::main]
 async fn main() {
     let socket_path = "/tmp/net_hound.sock";
     let firewall = Arc::new(Firewall::new());
+
+    println!("IP privada: {}", get_private_ip());
 
     if std::path::Path::new(socket_path).exists() {
         std::fs::remove_file(socket_path).unwrap();
@@ -176,10 +190,6 @@ async fn main() {
         println!("🔄 Iniciando verificación de IPs...");
         let mut interval = time::interval(CHECK_INTERVAL);
         loop {
-            print!(
-                "🔄 Esperando {} segundos para verificar IPs...",
-                CHECK_INTERVAL.as_secs()
-            );
             interval.tick().await;
             println!("🔄 {:?}", firewall_clone.allowed_ips);
             let ips: Vec<String> = firewall_clone
@@ -205,11 +215,14 @@ async fn main() {
                     if let Ok(size) = stream.read(&mut buffer) {
                         let received = String::from_utf8_lossy(&buffer[..size]);
                         let lines: Vec<&str> = received.lines().collect();
+                        println!("🔗 Recibido: {}\n\n\n", received);
                         if lines.len() >= 2 {
                             let ip = lines[0];
                             let mac = lines[1];
 
-                            if Firewall::is_private_ip(ip) && ip != "192.168.1.1" && ip != "0.0.0.0"
+                            println!("🔗 IP: {} MAC: {}", ip, mac);
+
+                            if Firewall::is_private_ip(ip) && ip != "192.168.1.1" && ip != "0.0.0.0" && ip != get_private_ip().as_str()
                             {
                                 println!("🔗 IP: {} MAC: {}", ip, mac);
                                 if firewall_clone.allowed_ips.contains_key(ip) {
