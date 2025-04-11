@@ -23,7 +23,7 @@ function App() {
         if (response.data.verified) {
           console.log('Login successful');
           // Redirect to success page
-          window.location.href = `http://localhost:8080/success?ip=${ip}`;
+          window.location.href = `http://192.168.1.1:8080/success?ip=${ip}`;
         } else {
           console.error('Login failed');
           alert('Login failed');

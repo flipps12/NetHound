@@ -226,22 +226,16 @@ async fn main() {
                             let mac = line;
                             let ip = current_ip.take().unwrap();
 
-                            println!("🔗 IP: {} MAC: {}", ip, mac);
+                            //println!("🔗 IP: {} MAC: {}", ip, mac);
 
-                            // if Firewall::is_private_ip(&ip)
-                            //     && ip != "192.168.1.1"
-                            //     && ip != "0.0.0.0"
-                            //     && ip != get_private_ip().as_str() // cambiando comprobación de IP a Packet analizer
-                            // {
-                            if firewall_clone.allowed_ips.contains_key(&ip) {
-                                if *firewall_clone.allowed_ips.get(&ip).unwrap() {
-                                    firewall_clone.unblock_ip(&ip);
-                                }
-                            } else {
+                            if !firewall_clone.allowed_ips.contains_key(&ip) {
+                            //     if *firewall_clone.allowed_ips.get(&ip).unwrap() {
+                            //         firewall_clone.unblock_ip(&ip);
+                            //     }
+                            // } else {
                                 firewall_clone.check_authorization(&mac, &ip).await;
                                 println!("New ip: {}", ip);
                             }
-                            //}
                         }
                     }
                 });
