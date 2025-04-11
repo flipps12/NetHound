@@ -1,11 +1,14 @@
 use dashmap::DashMap;
 use std::io::Read;
 use std::net::IpAddr;
-use std::os::unix::net::UnixListener;
+use std::net::UdpSocket;
 use std::process::Command;
 use std::sync::Arc;
-use tokio::time::{self, Duration};
-use std::net::UdpSocket;
+use tokio::{io::AsyncBufReadExt, net::UnixListener};
+use tokio::{
+    io::BufReader,
+    time::{self, Duration},
+};
 
 const SERVER_WEB: &str = "http://localhost/api";
 const CHECK_INTERVAL: Duration = Duration::from_secs(5);
@@ -159,8 +162,8 @@ fn run_command(command: &str, args: &[&str]) {
         eprintln!("❌ Error ejecutando: {} {:?}", command, args);
     }
 }
-fn get_private_ip() -> String {
 
+fn get_private_ip() -> String {
     let socket = UdpSocket::bind("0.0.0.0:0").expect("No se pudo crear el socket");
     socket
         .connect("8.8.8.8:80")
@@ -207,33 +210,38 @@ async fn main() {
     });
 
     loop {
-        match listener.accept() {
+        match listener.accept().await {
             Ok((mut stream, _)) => {
                 let firewall_clone = Arc::clone(&firewall);
                 tokio::spawn(async move {
-                    let mut buffer = [0; 1024];
-                    if let Ok(size) = stream.read(&mut buffer) {
-                        let received = String::from_utf8_lossy(&buffer[..size]);
-                        let lines: Vec<&str> = received.lines().collect();
-                        println!("🔗 Recibido: {}\n\n\n", received);
-                        if lines.len() >= 2 {
-                            let ip = lines[0];
-                            let mac = lines[1];
+                    let reader = BufReader::new(stream);
+                    let mut lines = reader.lines();
+
+                    let mut current_ip = None;
+
+                    while let Ok(Some(line)) = lines.next_line().await {
+                        if current_ip.is_none() {
+                            current_ip = Some(line);
+                        } else {
+                            let mac = line;
+                            let ip = current_ip.take().unwrap();
 
                             println!("🔗 IP: {} MAC: {}", ip, mac);
 
-                            if Firewall::is_private_ip(ip) && ip != "192.168.1.1" && ip != "0.0.0.0" && ip != get_private_ip().as_str()
-                            {
-                                println!("🔗 IP: {} MAC: {}", ip, mac);
-                                if firewall_clone.allowed_ips.contains_key(ip) {
-                                    if *firewall_clone.allowed_ips.get(ip).unwrap() {
-                                        firewall_clone.unblock_ip(ip);
-                                    }
-                                } else {
-                                    firewall_clone.check_authorization(mac, ip).await;
-                                    println!("New ip: {}", ip);
+                            // if Firewall::is_private_ip(&ip)
+                            //     && ip != "192.168.1.1"
+                            //     && ip != "0.0.0.0"
+                            //     && ip != get_private_ip().as_str() // cambiando comprobación de IP a Packet analizer
+                            // {
+                            if firewall_clone.allowed_ips.contains_key(&ip) {
+                                if *firewall_clone.allowed_ips.get(&ip).unwrap() {
+                                    firewall_clone.unblock_ip(&ip);
                                 }
+                            } else {
+                                firewall_clone.check_authorization(&mac, &ip).await;
+                                println!("New ip: {}", ip);
                             }
+                            //}
                         }
                     }
                 });

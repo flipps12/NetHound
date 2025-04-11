@@ -15,11 +15,13 @@ use crate::core::utils::get_interfaces::get_interfaces;
 use colored::Colorize;
 use rppal::gpio::Gpio;
 use std::io::{self, Write};
+use std::net::{IpAddr, UdpSocket};
 use std::os::unix::net::UnixStream;
 use std::process::Command; // , ptr::null
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
+use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
 use tokio::task;
 
@@ -94,8 +96,25 @@ pub fn restore_firewall() {
     println!("🔄 Firewall rules restored successfully");
 }
 
+fn get_private_ip() -> String {
+    let socket = UdpSocket::bind("0.0.0.0:0").expect("No se pudo crear el socket");
+    socket
+        .connect("8.8.8.8:80")
+        .expect("No se pudo conectar al socket");
+    if let Ok(local_addr) = socket.local_addr() {
+        return local_addr.ip().to_string();
+    }
+    "0.0.0.0".to_string()
+}
+
+fn is_private_ip(ip: &str) -> bool {
+    matches!(ip.parse::<IpAddr>(), Ok(IpAddr::V4(v4)) if v4.is_private())
+}
+
 #[tokio::main]
 pub async fn run() {
+    let log: bool = false;
+
     // Initialize GPIO
 
     let pin1 = 26;
@@ -170,53 +189,69 @@ pub async fn run() {
                 println!("CPU Temperature: {}", get_temp().red());
                 match event {
                     Event::PacketReceived(data) => {
-                        println!("Event: Packet received:");
-                        println!("  Source MAC: {:?}", data.src_mac);
-                        println!("  Destination MAC: {:?}", data.dst_mac);
-                        println!("  EtherType: {:?}", data.ethertype);
-                        println!(
-                            "  Source IP: {}",
-                            data.src_ip
-                                .as_ref()
-                                .map_or("None", |ip| ip)
-                                .to_string()
-                                .purple()
-                        );
-                        println!(
-                            "  Destination IP: {}",
-                            data.dst_ip
-                                .as_ref()
-                                .map_or("None", |ip| ip)
-                                .to_string()
-                                .purple()
-                        );
-                        println!("  IP Protocol: {:?}", data.ip_protocol);
-                        if let Some(tcp_src) = data.tcp_src_port {
+                        if log {
+                            println!("Event: Packet received:");
+                            println!("  Source MAC: {:?}", data.src_mac);
+                            println!("  Destination MAC: {:?}", data.dst_mac);
+                            println!("  EtherType: {:?}", data.ethertype);
                             println!(
-                                "  TCP: {} -> {}",
-                                tcp_src.to_string().green(),
-                                data.tcp_dst_port.unwrap_or(0).to_string().green()
+                                "  Source IP: {}",
+                                data.src_ip
+                                    .as_ref()
+                                    .map_or("None", |ip| ip)
+                                    .to_string()
+                                    .purple()
                             );
-                            println!("  Sequence: {:?}", data.tcp_sequence);
-                            println!("  Acknowledgment: {:?}", data.tcp_ack);
-                            println!("  Flags: {:?}", data.tcp_flags);
-                            led2.set_high();
+                            println!(
+                                "  Destination IP: {}",
+                                data.dst_ip
+                                    .as_ref()
+                                    .map_or("None", |ip| ip)
+                                    .to_string()
+                                    .purple()
+                            );
+                            println!("  IP Protocol: {:?}", data.ip_protocol);
+                            if let Some(tcp_src) = data.tcp_src_port {
+                                println!(
+                                    "  TCP: {} -> {}",
+                                    tcp_src.to_string().green(),
+                                    data.tcp_dst_port.unwrap_or(0).to_string().green()
+                                );
+                                println!("  Sequence: {:?}", data.tcp_sequence);
+                                println!("  Acknowledgment: {:?}", data.tcp_ack);
+                                println!("  Flags: {:?}", data.tcp_flags);
+                                led2.set_high();
+                            }
                         }
-
                         // ✅ Formateamos el mensaje y lo enviamos al canal
                         if let (Some(src_ip), Some(src_mac)) =
                             (data.src_ip.as_ref(), data.src_mac.as_deref())
                         {
-                            let message = format!("{}\n{}\n", src_ip, src_mac);
-                            if let Err(e) = tx.send(message).await {
-                                eprintln!("⚠ Error enviando al canal: {:?}", e);
+                            if is_private_ip(&src_ip)
+                                && src_ip != "192.168.1.1"
+                                && src_ip != "0.0.0.0"
+                                && src_ip != get_private_ip().as_str()
+                            {
+                                let message = format!("{}\n{}\n", src_ip, src_mac);
+                                match UnixStream::connect("/tmp/net_hound.sock") {
+                                    Ok(mut stream) => {
+                                        if let Err(e) = stream.write_all(message.as_bytes()) {
+                                            eprintln!("❌ Error al escribir en el socket: {:?}", e);
+                                        } else {
+                                            println!("📤 Enviado al socket: {}", message);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!("❌ Error al conectar al socket: {:?}", e);
+                                    }
+                                }
+                                led1.set_high();
                             }
-                            led1.set_high();
                         }
 
                         // Toggle LED on packet received
                         led3.set_high();
-                        sleep(Duration::from_millis(500));
+                        //sleep(Duration::from_millis(500));
                         led1.set_low();
                         led2.set_low();
                         led3.set_low();
