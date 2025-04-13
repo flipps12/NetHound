@@ -1,6 +1,4 @@
 use dashmap::DashMap;
-use std::io::Read;
-use std::net::IpAddr;
 use std::net::UdpSocket;
 use std::process::Command;
 use std::sync::Arc;
@@ -67,10 +65,6 @@ impl Firewall {
         println!(
             "🚫 Todo el tráfico está bloqueado salvo IPs autorizadas y conexiones existentes."
         );
-    }
-
-    fn is_private_ip(ip: &str) -> bool {
-        matches!(ip.parse::<IpAddr>(), Ok(IpAddr::V4(v4)) if v4.is_private())
     }
 
     async fn check_authorization(&self, mac: &str, ip: &str) -> bool {
@@ -211,7 +205,7 @@ async fn main() {
 
     loop {
         match listener.accept().await {
-            Ok((mut stream, _)) => {
+            Ok((stream, _)) => {
                 let firewall_clone = Arc::clone(&firewall);
                 tokio::spawn(async move {
                     let reader = BufReader::new(stream);

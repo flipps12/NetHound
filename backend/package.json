@@ -6,11 +6,15 @@
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   },
   "scripts": {
-    "start": "tsx index.ts"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx index.ts"
   }
 }
