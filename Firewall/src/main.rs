@@ -1,28 +1,19 @@
 use dashmap::DashMap;
-use tokio::runtime::Builder;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::os::unix::net::UnixDatagram;
+use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::{fs, thread};
-use std::{net::UdpSocket, path::Path};
-use tokio::{
-    io::BufReader,
-    time::{self, Duration},
-};
-use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt},
-    net::{UnixListener, UnixStream},
-};
+use tokio::runtime::Builder;
+use tokio::time::Duration;
 use warp::Filter;
-use serde::{Deserialize, Serialize};
 
 const SERVER_WEB: &str = "http://localhost/api";
 const SERVER_IP: &str = "192.168.1.1";
-const CHECK_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(Debug)]
 enum HostapdEvent {
@@ -244,14 +235,11 @@ fn main() -> std::io::Result<()> {
     let mac_ip_map: MacIpMap = Arc::new(DashMap::new());
     let allowed_ips: AllowedIps = Arc::new(DashMap::new());
 
-     // Lanzar servidor HTTP en hilo aparte con runtime Tokio
+    // Lanzar servidor HTTP en hilo aparte con runtime Tokio
     {
         let allowed_ips_clone = allowed_ips.clone();
         std::thread::spawn(move || {
-            let rt = Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap();
+            let rt = Builder::new_current_thread().enable_all().build().unwrap();
             rt.block_on(run_http_server(allowed_ips_clone))
                 .unwrap_or_else(|e| eprintln!("Error en servidor HTTP: {}", e));
         });

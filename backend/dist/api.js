@@ -16,7 +16,7 @@ const express_1 = __importDefault(require("express"));
 const sqlite3_1 = __importDefault(require("sqlite3"));
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const router = express_1.default.Router();
-const db = new sqlite3_1.default.Database('./users.db');
+const db = new sqlite3_1.default.Database(__dirname + '/users.db');
 function hashPassword(password) {
     return __awaiter(this, void 0, void 0, function* () {
         const saltRounds = 10; // Número de rondas (10 es seguro y rápido)
@@ -43,6 +43,7 @@ router.post('/adduser', (req, res) => __awaiter(void 0, void 0, void 0, function
 router.get('/getallusers', (req, res) => {
     db.all("SELECT * FROM devices", [], (err, rows) => {
         if (err) {
+            console.error(err);
             return res.status(500).json({ error: err.message });
         }
         res.json({ users: rows });
@@ -53,6 +54,7 @@ router.get('/user/:user', (req, res) => {
     const { username } = req.params;
     db.get("SELECT * FROM devices WHERE username = ?", [username], (err, row) => {
         if (err) {
+            console.error(err);
             return res.status(500).json({ error: err.message });
         }
         res.json({ users: row });

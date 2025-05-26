@@ -10,7 +10,7 @@ use pnet::packet::{
 
 #[derive(Debug, Clone)]
 pub struct PacketData {
-    pub raw_data: Vec<u8>,
+    pub _raw_data: Vec<u8>,
     // Datos de Ethernet
     pub src_mac: Option<String>,
     pub dst_mac: Option<String>,
@@ -33,7 +33,7 @@ pub struct PacketData {
 
 pub fn parse_packet(packet: &[u8]) -> PacketData {
     let mut data = PacketData {
-        raw_data: packet.to_vec(),
+        _raw_data: packet.to_vec(),
         src_mac: None,
         dst_mac: None,
         ethertype: None,

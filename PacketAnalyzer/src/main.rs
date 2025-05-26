@@ -10,11 +10,10 @@ mod core {
 use crate::core::event_bus::{Event, EventBus};
 use crate::core::packet_data::PacketData;
 use crate::core::packet_processor::PacketProcessor;
-use crate::core::utils::get_interfaces::get_interfaces;
+// use crate::core::utils::get_interfaces::get_interfaces;
 
 use colored::Colorize;
-use rppal::gpio::Gpio;
-use std::io::{self, Write};
+use std::io::Write;
 use std::net::{IpAddr, UdpSocket};
 use std::os::unix::net::UnixStream;
 use std::process::Command; // , ptr::null
@@ -112,33 +111,13 @@ fn is_private_ip(ip: &str) -> bool {
 pub async fn run() {
     let log: bool = false;
 
-    // Initialize GPIO
-
-    let pin1 = 26;
-    let pin2 = 20;
-    let pin3 = 21;
-    let mut led1 = Gpio::new()
-        .expect("Error al inicializar GPIO")
-        .get(pin1)
-        .expect("Error al obtener el pin")
-        .into_output();
-    let mut led2 = Gpio::new()
-        .expect("Error al inicializar GPIO")
-        .get(pin2)
-        .expect("Error al obtener el pin")
-        .into_output();
-    let mut led3 = Gpio::new()
-        .expect("Error al inicializar GPIO")
-        .get(pin3)
-        .expect("Error al obtener el pin")
-        .into_output();
-
     // sockets
     let stream = Arc::new(Mutex::new(
         UnixStream::connect("/tmp/net_hound.sock").expect("No se pudo conectar al socket UNIX"),
     ));
     let (_tx, mut rx) = mpsc::channel::<String>(100);
 
+    /*
     // Define network interface to capture packets
     let interfaces = get_interfaces();
     let mut i = 1;
@@ -153,8 +132,9 @@ pub async fn run() {
     io::stdin()
         .read_line(&mut buffer)
         .expect("Error at reading input");
-    let interface_index: usize = buffer.trim().parse::<usize>().unwrap();
-    let interface_name = interfaces[interface_index - 1].clone();
+    let interface_index: usize = buffer.trim().parse::<usize>().unwrap(); */
+    //let interface_name = interfaces[interface_index - 1].clone();
+    let interface_name = "wlan0";
 
     // restore_firewall();
 
@@ -163,7 +143,6 @@ pub async fn run() {
     let mut subscriber = event_bus.subscribe();
 
     // Task to process and display received events
-    let interface_name_clone = interface_name.clone();
     let stream_clone = Arc::clone(&stream);
     task::spawn(async move {
         while let Some(message) = rx.recv().await {
@@ -181,7 +160,7 @@ pub async fn run() {
                 print!("\x1B[2J\x1B[H");
                 println!(
                     "Intercepting packet in {}",
-                    format!("{}", interface_name_clone).green()
+                    format!("{}", interface_name).green()
                 );
                 println!("CPU Temperature: {}", get_temp().red());
                 match event {
@@ -217,7 +196,6 @@ pub async fn run() {
                                 println!("  Sequence: {:?}", data.tcp_sequence);
                                 println!("  Acknowledgment: {:?}", data.tcp_ack);
                                 println!("  Flags: {:?}", data.tcp_flags);
-                                led2.set_high();
                             }
                         }
                         // ✅ Formateamos el mensaje y lo enviamos al canal
@@ -242,16 +220,8 @@ pub async fn run() {
                                         eprintln!("❌ Error al conectar al socket: {:?}", e);
                                     }
                                 }
-                                led1.set_high();
                             }
                         }
-
-                        // Toggle LED on packet received
-                        led3.set_high();
-                        //sleep(Duration::from_millis(500));
-                        led1.set_low();
-                        led2.set_low();
-                        led3.set_low();
                     }
                     Event::DropPacket(data) => {
                         println!("Event: Drop packet request:");

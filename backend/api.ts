@@ -2,9 +2,11 @@ import express, { Request, Response } from 'express';
 import sqlite3 from 'sqlite3';
 import bodyParser from 'body-parser';
 import bcrypt from 'bcrypt';
-
+import path from 'path';
+import axios from 'axios';
 const router = express.Router();
-const db = new sqlite3.Database('./users.db');
+
+const db = new sqlite3.Database(__dirname + '/users.db');
 
 async function hashPassword(password: string): Promise<string> {
     const saltRounds = 10; // Número de rondas (10 es seguro y rápido)
@@ -15,6 +17,16 @@ async function hashPassword(password: string): Promise<string> {
 async function checkPassword(password: string, hash: string): Promise<boolean> {
     return await bcrypt.compare(password, hash);
 }
+
+router.get("/reload_firewall", async (req: Request, res: Response) => {
+    try {
+        await reload_firewall();
+        res.json({ message: "Firewall reloaded successfully" });
+    } catch (error) {
+        console.error("Error reloading firewall:", error);
+        res.status(500).json({ error: "Failed to reload firewall" });
+    }
+});
 
 // Create
 router.post('/adduser', async (req: Request, res: Response) => {
@@ -31,6 +43,7 @@ router.post('/adduser', async (req: Request, res: Response) => {
 router.get('/getallusers', (req: Request, res: Response) => {
     db.all("SELECT * FROM devices", [], (err, rows) => {
         if (err) {
+            console.error(err);
             return res.status(500).json({ error: err.message });
         }
         res.json({ users: rows });
@@ -42,10 +55,32 @@ router.get('/user/:user', (req: Request, res: Response) => {
     const { username } = req.params;
     db.get("SELECT * FROM devices WHERE username = ?", [username], (err, row) => {
         if (err) {
+            console.error(err);
             return res.status(500).json({ error: err.message });
         }
         res.json({ users: row });
     });
+});
+
+// Read one
+router.get('/userip', async (req: Request<{}, {}, {}, { mac?: string; ip?: string }>, res: Response): Promise<void> => {
+    const { mac, ip } = req.query;
+    db.get("SELECT * FROM devices WHERE ip = ?", [ip], (err, row) => {
+        if (err) {
+            console.error(err);
+            return res.status(500).json({ error: err.message });
+        }
+        if (!row) {
+            return res.json({ authorized: !!row });
+        }
+        db.run("UPDATE devices SET mac = ? WHERE ip = ?", [mac, ip], function (err) {
+            if (err) {
+                return res.status(500).json({ error: err.message });
+            }
+            res.json({ authorized: !!row });
+        });
+    });
+    reload_firewall();
 });
 
 // Verify
@@ -76,6 +111,7 @@ router.post('/login', async (req: Request, res: Response) => {
             res.json({ verified: false });
         }
     });
+    reload_firewall();
 });
 
 // Delete
@@ -123,5 +159,29 @@ router.get('/onlyip', async (req: Request<{}, {}, {}, { ip?: string }>, res: Res
         res.json({ authorized: !!row });
     });
 });
+
+
+async function reload_firewall() {
+    return new Promise<void>((resolve, reject) => {
+        db.all("SELECT ip FROM devices WHERE ip IS NOT NULL", [], async (err, rows: { ip: string }[]) => {
+            if (err) {
+                return reject(err);
+            }
+            const ips = rows.map((row) => row.ip);
+            try {
+                await axios.post('http://127.0.0.1:3030/reload', { ips });
+                resolve();
+            } catch (error) {
+                if (error && typeof error === "object" && "message" in error) {
+                    console.error("Failed to reload firewall (axios):", (error as { message: string }).message);
+                } else {
+                    console.error("Failed to reload firewall (axios):", error);
+                }
+                // Do not reject, just resolve to prevent crashing the process
+                resolve();
+            }
+        });
+    });
+}
 
 export default router;
