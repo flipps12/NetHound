@@ -1,2 +1,3 @@
 /node_modules
+/dist
 # agregar un users.db.example y meter el original
