@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import Hostname from "./components/Hostname";
 
 interface TrafficItem {
     bytes: number;
@@ -93,8 +94,16 @@ const Stats = () => {
                 {stats.map((device, idx) => (
                     <li key={device.id ?? idx}><br />
                         <strong>bytes:</strong> {device.bytes} <br />
-                        <strong>Source IP:</strong> {device.src_ip} <br />
-                        <strong>Destination IP:</strong> {device.dst_ip} <br />
+                        <strong>Source IP:</strong> {device.src_ip}
+                        { !isPrivateIP(device.src_ip) && (
+                            <Hostname ip={device.src_ip} />
+                        ) }
+                        <br />
+                        <strong>Destination IP:</strong> {device.dst_ip}
+                        { !isPrivateIP(device.dst_ip) && (
+                            <Hostname ip={device.dst_ip} />
+                        ) }
+                        <br />
                         <strong>Paquetes (count):</strong> {device.count} <br />
                     </li>
                 ))}
