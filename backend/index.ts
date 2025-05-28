@@ -1,7 +1,9 @@
 import express, { Request, Response } from 'express';
-import apiRouter from './api';
+import apiUsersRouter from './routes/users';
+import apiPacketAnalizerRouter from './routes/PacketAnalizer';
 import redirectRouter from './redirects';
 import bodyParser from 'body-parser';
+import sqlite3 from 'sqlite3';
 import cors from 'cors';
 
 const app = express();
@@ -16,7 +18,8 @@ app.use(cors(corsOptions));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.use('/api', apiRouter);
+app.use('/api', apiUsersRouter);
+app.use('/api', apiPacketAnalizerRouter);
 app.use(redirectRouter);
 
 app.listen(port, () => {
