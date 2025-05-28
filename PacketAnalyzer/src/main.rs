@@ -10,16 +10,106 @@ mod core {
 use crate::core::event_bus::{Event, EventBus};
 use crate::core::packet_data::PacketData;
 use crate::core::packet_processor::PacketProcessor;
-// use crate::core::utils::get_interfaces::get_interfaces;
 
+use chrono::prelude::*;
 use colored::Colorize;
-use std::io::Write;
-use std::net::{IpAddr, UdpSocket};
-use std::os::unix::net::UnixStream;
-use std::process::Command; // , ptr::null
-use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc;
+use r2d2_sqlite::rusqlite::{self, Connection, params};
+use std::fs;
+// use std::path::Path;
+use std::sync::{Arc, mpsc};
 use tokio::task;
+
+#[derive(Debug, Clone)]
+pub struct PacketLog {
+    pub timestamp: String,
+    pub src_ip: String,
+    pub dst_ip: String,
+    pub src_mac: String,
+    pub dst_mac: String,
+    pub protocol: String,
+    pub bytes: usize,
+    pub count: usize,
+}
+
+fn get_db_path() -> String {
+    let now = Utc::now().format("%Y-%m-%d").to_string();
+    let dir = "/var/lib/nethound";
+    fs::create_dir_all(dir).unwrap();
+    format!("{}/traffic_{}.db", dir, now)
+}
+
+pub fn create_table(conn: &Connection) -> Result<(), rusqlite::Error> {
+    conn.pragma_update(None, "journal_mode", &"WAL")?;
+    conn.pragma_update(None, "synchronous", &"NORMAL")?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS packet_summary (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            src_ip TEXT NOT NULL,
+            dst_ip TEXT NOT NULL,
+            src_mac TEXT NOT NULL,
+            dst_mac TEXT NOT NULL,
+            protocol TEXT NOT NULL,
+            bytes INTEGER NOT NULL,
+            count INTEGER NOT NULL,
+            first_seen TEXT NOT NULL,
+            last_seen TEXT NOT NULL,
+            UNIQUE(src_ip, dst_ip, src_mac, dst_mac, protocol)
+        );",
+        [],
+    )?;
+    Ok(())
+}
+
+pub fn upsert_packet_summary(conn: &Connection, log: &PacketLog) {
+    conn.execute(
+        "INSERT INTO packet_summary (src_ip, dst_ip, src_mac, dst_mac, protocol, bytes, count, first_seen, last_seen)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)
+         ON CONFLICT(src_ip, dst_ip, src_mac, dst_mac, protocol)
+         DO UPDATE SET
+            bytes = bytes + excluded.bytes,
+            count = count + excluded.count,
+            last_seen = excluded.last_seen;",
+        params![
+            log.src_ip,
+            log.dst_ip,
+            log.src_mac,
+            log.dst_mac,
+            log.protocol,
+            log.bytes as i64,
+            log.count as i64,
+            log.timestamp,
+        ],
+    )
+    .unwrap();
+}
+
+fn save_packet_summary(packet: &PacketData) -> PacketLog {
+    let timestamp = chrono::Utc::now().to_rfc3339();
+    let binding = "None".to_string();
+    let src_mac = packet.src_mac.as_ref().unwrap_or(&binding).clone();
+    let dst_mac = packet.dst_mac.as_ref().unwrap_or(&binding).clone();
+    let src_ip = packet.src_ip.as_ref().unwrap_or(&binding).clone();
+    let dst_ip = packet.dst_ip.as_ref().unwrap_or(&binding).clone();
+
+    let protocol = if packet.tcp_src_port.is_some() {
+        "TCP"
+    } else if packet.udp_src_port.is_some() {
+        "UDP"
+    } else {
+        "Other"
+    };
+
+    PacketLog {
+        timestamp,
+        src_ip,
+        dst_ip,
+        src_mac,
+        dst_mac,
+        protocol: protocol.to_string(),
+        bytes: packet._raw_data.len(),
+        count: 1,
+    }
+}
 
 fn main() {
     print!("\x1B[2J\x1B[H");
@@ -29,140 +119,48 @@ fn main() {
             .bold()
             .cyan()
     );
-    run();
-}
-
-fn update_firewall(packet: &PacketData) {
-    if let Some(ref src_ip) = packet.src_ip {
-        println!("Blocking traffic from IP: {}", src_ip);
-        let output = Command::new("sudo")
-            .args(&["iptables", "-I", "INPUT", "-s", src_ip, "-j", "DROP"])
-            .output();
-        match output {
-            Ok(o) => println!("Firewall updated: {:?}", String::from_utf8_lossy(&o.stdout)),
-            Err(e) => eprintln!("Error updating firewall: {:?}", e),
-        }
-    } else {
-        println!("Could not determine source IP; firewall not updated.");
-    }
-}
-
-fn get_temp() -> String {
-    let output = Command::new("sensors")
-        .output()
-        .expect("Error executing command");
-
-    if output.status.success() {
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        let temp = output_str
-            .lines()
-            .find(|line| line.contains("temp1:"))
-            .map(|line| line.split_whitespace().last().unwrap())
-            .unwrap_or("N/A");
-
-        temp.to_string()
-    } else {
-        eprintln!("Error executing 'sensors': {:?}", output);
-        "N/A".to_string()
-    }
-}
-
-pub fn restore_firewall() {
-    let restore_cmds = [
-        "iptables-restore < /etc/iptables/rules.v4",
-        "ip6tables-restore < /etc/iptables/rules.v6",
-        // "ip link set br0 down 2>/dev/null",
-        // "ip link delete br0 type bridge 2>/dev/null",
-        // "ip addr flush dev wlan0",
-        // "ip addr flush dev eth0",
-    ];
-
-    for cmd in restore_cmds {
-        let output = Command::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .output()
-            .expect("Error executing command");
-
-        if !output.status.success() {
-            eprintln!("Error executing '{}': {:?}", cmd, output);
-        }
-    }
-
-    println!("🔄 Firewall rules restored successfully");
-}
-
-fn get_private_ip() -> String {
-    let socket = UdpSocket::bind("0.0.0.0:0").expect("No se pudo crear el socket");
-    socket
-        .connect("8.8.8.8:80")
-        .expect("No se pudo conectar al socket");
-    if let Ok(local_addr) = socket.local_addr() {
-        return local_addr.ip().to_string();
-    }
-    "0.0.0.0".to_string()
-}
-
-fn is_private_ip(ip: &str) -> bool {
-    matches!(ip.parse::<IpAddr>(), Ok(IpAddr::V4(v4)) if v4.is_private())
+    let _ = run();
 }
 
 #[tokio::main]
-pub async fn run() {
-    let log: bool = false;
+pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let (tx_db, rx_db) = mpsc::channel::<PacketLog>();
 
-    // sockets
-    let stream = Arc::new(Mutex::new(
-        UnixStream::connect("/tmp/net_hound.sock").expect("No se pudo conectar al socket UNIX"),
-    ));
-    let (_tx, mut rx) = mpsc::channel::<String>(100);
+    std::thread::spawn(move || {
+        let mut current_db_path = get_db_path();
+        let mut conn = Connection::open(&current_db_path).expect("Failed to open DB");
+        create_table(&conn).expect("Failed to create table");
 
-    /*
-    // Define network interface to capture packets
-    let interfaces = get_interfaces();
-    let mut i = 1;
-    for interface in &interfaces {
-        print!("    {} - ", i.to_string().green());
-        print!("{} \n", interface.cyan());
-        i += 1;
-    }
-    print!("Select interface: ");
-    io::stdout().flush().expect("Error at flushing stdout");
-    let mut buffer = String::new();
-    io::stdin()
-        .read_line(&mut buffer)
-        .expect("Error at reading input");
-    let interface_index: usize = buffer.trim().parse::<usize>().unwrap(); */
-    //let interface_name = interfaces[interface_index - 1].clone();
-    let interface_name = "wlan0";
-
-    // restore_firewall();
-
-    // Create shared EventBus
-    let event_bus = Arc::new(EventBus::new());
-    let mut subscriber = event_bus.subscribe();
-
-    // Task to process and display received events
-    let stream_clone = Arc::clone(&stream);
-    task::spawn(async move {
-        while let Some(message) = rx.recv().await {
-            let mut stream = stream_clone.lock().unwrap();
-            if let Err(e) = stream.write_all(message.as_bytes()) {
-                eprintln!("⚠ Error enviando datos: {:?}", e);
-                break; // Detenemos si el socket se rompe
+        while let Ok(log) = rx_db.recv() {
+            let db_path = get_db_path();
+            if db_path != current_db_path {
+                current_db_path = db_path;
+                conn = Connection::open(&current_db_path).expect("Failed to open new DB");
+                create_table(&conn).expect("Failed to create table");
             }
+
+            upsert_packet_summary(&conn, &log);
         }
     });
 
+    let log = false;
+    let interface_name = "wlan0";
+    let event_bus = Arc::new(EventBus::new());
+    let mut subscriber = event_bus.subscribe();
+
     tokio::spawn({
+        let tx_db = tx_db.clone();
+
         async move {
             while let Ok(event) = subscriber.recv().await {
-                print!("\x1B[2J\x1B[H");
-                println!(
-                    "Intercepting packet in {}",
-                    format!("{}", interface_name).green()
-                );
-                println!("CPU Temperature: {}", get_temp().red());
+                // print!("\x1B[2J\x1B[H");
+                if log {
+                    println!(
+                        "Intercepting packet in {}",
+                        format!("{}", interface_name).green()
+                    );
+                }
+
                 match event {
                     Event::PacketReceived(data) => {
                         if log {
@@ -198,46 +196,36 @@ pub async fn run() {
                                 println!("  Flags: {:?}", data.tcp_flags);
                             }
                         }
-                        // ✅ Formateamos el mensaje y lo enviamos al canal
-                        if let (Some(src_ip), Some(src_mac)) =
-                            (data.src_ip.as_ref(), data.src_mac.as_deref())
-                        {
-                            if is_private_ip(&src_ip)
-                                && src_ip != "192.168.1.1"
-                                && src_ip != "0.0.0.0"
-                                && src_ip != get_private_ip().as_str()
-                            {
-                                let message = format!("{}\n{}\n", src_ip, src_mac);
-                                match UnixStream::connect("/tmp/net_hound.sock") {
-                                    Ok(mut stream) => {
-                                        if let Err(e) = stream.write_all(message.as_bytes()) {
-                                            eprintln!("❌ Error al escribir en el socket: {:?}", e);
-                                        } else {
-                                            println!("📤 Enviado al socket: {}", message);
-                                        }
-                                    }
-                                    Err(e) => {
-                                        eprintln!("❌ Error al conectar al socket: {:?}", e);
-                                    }
-                                }
-                            }
+
+                        let summary = save_packet_summary(&data);
+
+                        if log {
+                            println!(
+                                "Packet received: {} -> {} ({} bytes)",
+                                summary.src_ip.cyan(),
+                                summary.dst_ip.cyan(),
+                                summary.bytes.to_string().green()
+                            );
+                        }
+
+                        if let Err(e) = tx_db.send(summary) {
+                            eprintln!("⚠ Error enviando paquete al hilo DB: {:?}", e);
                         }
                     }
-                    Event::DropPacket(data) => {
+                    Event::DropPacket(_data) => {
                         println!("Event: Drop packet request:");
-                        update_firewall(&data);
                     }
                 }
             }
         }
     });
 
-    // Create processor for the WLAN interface (e.g., "wlan0")
     let processor = PacketProcessor::new(Arc::clone(&event_bus), &interface_name);
-    // Run packet capture in a blocking context to avoid blocking the Tokio runtime
     task::spawn_blocking(move || {
         processor.run();
     })
     .await
     .unwrap();
+
+    Ok(())
 }

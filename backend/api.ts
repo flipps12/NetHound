@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import Database from 'better-sqlite3';
 import sqlite3 from 'sqlite3';
 import bodyParser from 'body-parser';
 import bcrypt from 'bcrypt';
@@ -6,7 +7,9 @@ import path from 'path';
 import axios from 'axios';
 const router = express.Router();
 
-const db = new sqlite3.Database(__dirname + '/users.db');
+// sudo mkdir /var/lib/nethound
+const db = new sqlite3.Database('/var/lib/nethound/nethound.db');
+
 
 async function hashPassword(password: string): Promise<string> {
     const saltRounds = 10; // Número de rondas (10 es seguro y rápido)
@@ -31,6 +34,9 @@ router.get("/reload_firewall", async (req: Request, res: Response) => {
 // Create
 router.post('/adduser', async (req: Request, res: Response) => {
     const { username, password } = req.body;
+    if (!username || !password) {
+        res.status(400).json({ error: "Username and password are required" });
+    }
     db.run("INSERT INTO devices (username, password) VALUES (?, ?)", [username, await hashPassword(password)], function (err) {
         if (err) {
             return res.status(500).json({ error: err.message });
@@ -48,6 +54,25 @@ router.get('/getallusers', (req: Request, res: Response) => {
         }
         res.json({ users: rows });
     });
+});
+
+// Read all
+router.get('/daily-traffic/:date', (req: Request, res: Response) => {
+    const { date } = req.params;
+    const dbPath = path.join('/var/lib/nethound', `traffic_${date}.db`);
+    const db = new Database(dbPath, { readonly: true });
+    const stmt = db.prepare(`
+        SELECT *
+        FROM packet_summary
+        ORDER BY last_seen DESC
+        LIMIT 100
+    `);
+
+    const rows = stmt.all();
+
+    res.send(rows);
+
+    db.close();
 });
 
 // Read one
