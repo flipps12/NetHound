@@ -32,7 +32,7 @@ pub struct PacketLog {
 }
 
 fn get_db_path() -> String {
-    let now = Utc::now().format("%Y-%m-%d").to_string();
+    let now = Local::now().format("%Y-%m-%d").to_string();
     let dir = "/var/lib/nethound";
     fs::create_dir_all(dir).unwrap();
     format!("{}/traffic_{}.db", dir, now)

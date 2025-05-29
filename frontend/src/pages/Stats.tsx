@@ -35,8 +35,13 @@ function isPrivateIP(ip: string): boolean {
 const Stats = () => {
     const [stats, setStats] = useState<TrafficItem[]>([]);
 
+    const now = new Date();
+    const date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    console.log("Fetching stats for date:", date);
+
     useEffect(() => {
-        axios.get(`http://${window.location.hostname}/api/daily-traffic/2025-05-28`)
+        axios.get(`http://${window.location.hostname}/api/daily-traffic/${date}`) // example: 2025-05-28
             .then(response => {
                 // Ensure the data is always an array
                 setStats(Array.isArray(response.data) ? response.data : []);
@@ -95,14 +100,14 @@ const Stats = () => {
                     <li key={device.id ?? idx}><br />
                         <strong>bytes:</strong> {device.bytes} <br />
                         <strong>Source IP:</strong> {device.src_ip}
-                        { !isPrivateIP(device.src_ip) && (
+                        {!isPrivateIP(device.src_ip) && (
                             <Hostname ip={device.src_ip} />
-                        ) }
+                        )}
                         <br />
                         <strong>Destination IP:</strong> {device.dst_ip}
-                        { !isPrivateIP(device.dst_ip) && (
+                        {!isPrivateIP(device.dst_ip) && (
                             <Hostname ip={device.dst_ip} />
-                        ) }
+                        )}
                         <br />
                         <strong>Paquetes (count):</strong> {device.count} <br />
                     </li>
