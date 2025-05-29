@@ -98,7 +98,7 @@ const Stats = () => {
             <ul>
                 {stats.map((device, idx) => (
                     <li key={device.id ?? idx}><br />
-                        <strong>bytes:</strong> {device.bytes} <br />
+                        <strong>bytes:</strong> {formatBytes(device.bytes)} <br />
                         <strong>Source IP:</strong> {device.src_ip}
                         {!isPrivateIP(device.src_ip) && (
                             <Hostname ip={device.src_ip} />
