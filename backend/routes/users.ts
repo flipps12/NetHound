@@ -3,6 +3,7 @@ import sqlite3 from 'sqlite3';
 import bodyParser from 'body-parser';
 import bcrypt from 'bcrypt';
 import axios from 'axios';
+import { checkPrime } from 'crypto';
 const router = express.Router();
 
 // sudo mkdir /var/lib/nethound
@@ -18,6 +19,24 @@ async function hashPassword(password: string): Promise<string> {
 async function checkPassword(password: string, hash: string): Promise<boolean> {
     return await bcrypt.compare(password, hash);
 }
+
+async function checkIp(ip: string): Promise<boolean> {
+    return new Promise((resolve, reject) => {
+        db.get("SELECT * FROM devices WHERE ip = ?", [ip], (err, row) => {
+            if (err) {
+                console.error("Error checking IP:", err);
+                return reject(err);
+            }
+            if (row) {
+                console.log("IP already exists:", ip);
+                return resolve(true); // IP existe y está en DB
+            } else {
+                return resolve(false); // No existe IP
+            }
+        });
+    });
+}
+
 
 router.get("/reload_firewall", async (req: Request, res: Response) => {
     try {
@@ -191,4 +210,5 @@ async function reload_firewall() {
     });
 }
 
+export { checkIp };
 export default router;
