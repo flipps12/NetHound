@@ -16,6 +16,15 @@ Su objetivo principal es servir como plataforma de investigación y demostració
 - Integración con `hostapd` e `iptables` para control de acceso por MAC/IP.
 - Actualización periódica del estado de los dispositivos conectados.
 
+## 📦 Instalación
+
+```bash
+./compile.sh
+sudo ./install.sh
+sudo /usr/local/bin/NetHound start
+````
+
+
 ## 🛠️ Arquitectura
 
 ```
