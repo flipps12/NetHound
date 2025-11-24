@@ -1,0 +1,17 @@
+[package]
+name = "nh-captive-portal"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = { version = "0.8.7", default-features = false, features = ["http1", "tokio"] }
+tokio = { version = "1.48.0", features = ["rt", "macros", "net", "sync"] }
+# multi hilo tokio = { version = "1.48.0", features = ["rt-multi-thread"] }
+tower-http = { version = "0.6.6", features = ["fs"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
