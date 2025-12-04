@@ -13,7 +13,7 @@ pub fn sha256(input: String) -> String {
 
 // El mapeo de error manual ya no es necesario si usamos las versiones 0.5+
 // pero lo mantendremos simple para que funcione con anyhow.
-pub fn hash_password(password: &str) -> anyhow::Result<String> {
+pub fn _hash_password(password: &str) -> anyhow::Result<String> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
     
@@ -27,7 +27,7 @@ pub fn hash_password(password: &str) -> anyhow::Result<String> {
     Ok(hash)
 }
 
-pub fn verify_password(password: &str, stored_hash: &str) -> bool {
+pub fn _verify_password(password: &str, stored_hash: &str) -> bool {
     // 1. Parsear el hash almacenado (puede fallar si el formato es malo)
     let parsed = match PasswordHash::new(stored_hash) {
         Ok(hash) => hash,

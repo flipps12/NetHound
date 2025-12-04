@@ -1,4 +1,4 @@
-use sqlx::{SqlitePool, migrate::Migrator};
+use sqlx::SqlitePool;
 use std::path::Path;
 use crate::{GlobalConfig, dtos::Account};
 
@@ -85,7 +85,7 @@ pub async fn read_account_by_name(pool: &SqlitePool, username: &str) -> Result<S
     .await?;
     match result {
         Some(record) => Ok(record.password),
-        None => Err(sqlx::Error::RowNotFound),
+        _none => Err(sqlx::Error::RowNotFound),
     }
 }
 

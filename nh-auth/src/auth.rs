@@ -1,5 +1,5 @@
 use axum::{Router, routing::{get, post}};
-use crate::{AppState, auth_handlers::{ChallengeStore, create_user, get_challenge, validate_user}};
+use crate::{AppState, auth_handlers::{create_user, get_challenge, validate_user}};
 
 pub fn auth_routes() -> Router<AppState> {
     Router::new()
