@@ -1,19 +1,316 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Challenge-Response Auth</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    
+    <style>
+        /* Estilos CSS Base */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 450px;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        /* Formulario y Controles */
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box; /* Incluye padding y borde en el ancho total */
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Switch de IP */
+        .ip-switch {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background-color: #f9f9f9;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        /* Estado */
+        #status-display {
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 6px;
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            font-size: 14px;
+        }
+
+        /* Media Queries para adaptabilidad */
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+            .container {
+                padding: 20px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <form action="" method="get">
-        <h1>NetHound</h1>
-        <div>
-            <input type="text" name="user">
-            <input type="password" name="password">
-            <input type="button" value="Validar">
-        </div>
-    </form>
+
+<div class="container">
+    <h1>Login Challenge-Response</h1>
+
+    <div class="ip-switch">
+        <span>IP del Servidor: <strong id="current-ip">localhost</strong></span>
+        <label class="toggle-switch">
+            <input type="checkbox" id="ip-toggle" onchange="updateServerIp()">
+            <span class="slider"></span>
+        </label>
+    </div>
+
+    <label for="username">Usuario:</label>
+    <input type="text" id="username" value="Admin" required>
+
+    <label for="password">Contraseña (Plana):</label>
+    <input type="password" id="password" required>
+
+    <button onclick="handleValidation()">Iniciar Sesión</button>
+
+    <div id="status-display">Estado: Listo.</div>
+</div>
+
+<script>
+    // --- Configuración Global ---
+    const PORT = 8000;
+    const LOCAL_IP = "localhost";
+    const PRIVATE_IP = "192.168.1.1";
+    let CURRENT_SERVER_IP = LOCAL_IP;
+
+    const ENDPOINT_CHALLENGE = "/auth/challenge";
+    const ENDPOINT_VALIDATE = "/auth/validate";
+
+    // --- Funciones de Control ---
+
+    /**
+     * Actualiza la IP del servidor al mover el switch.
+     */
+    function updateServerIp() {
+        const toggle = document.getElementById('ip-toggle');
+        const ipDisplay = document.getElementById('current-ip');
+
+        if (toggle.checked) {
+            CURRENT_SERVER_IP = PRIVATE_IP;
+        } else {
+            CURRENT_SERVER_IP = LOCAL_IP;
+        }
+
+        ipDisplay.textContent = CURRENT_SERVER_IP;
+        updateStatus(`IP del servidor cambiada a: ${CURRENT_SERVER_IP}`, 'info');
+    }
+
+    /**
+     * Muestra un mensaje en el área de estado.
+     */
+    function updateStatus(message, type = 'info') {
+        const display = document.getElementById('status-display');
+        display.textContent = `Estado: ${message}`;
+        display.style.backgroundColor = type === 'error' ? '#f8d7da' : '#d1ecf1';
+        display.style.color = type === 'error' ? '#721c24' : '#0c5460';
+        console.log(message);
+    }
+
+    // --- Lógica Principal de Autenticación Challenge-Response ---
+
+    /**
+     * Inicia el flujo de autenticación.
+     */
+    async function handleValidation() {
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value; // Contraseña plana
+        const serverUrl = `http://${CURRENT_SERVER_IP}:${PORT}`;
+
+        if (!username || !password) {
+            updateStatus("Usuario y contraseña son requeridos.", 'error');
+            return;
+        }
+
+        updateStatus("1. Solicitando Challenge...");
+
+        try {
+            // 1. OBTENER EL CHALLENGE (GET /auth/challenge)
+            const challengeData = await fetchChallenge(serverUrl);
+            
+            if (!challengeData || challengeData.error) {
+                updateStatus(`Error al obtener challenge: ${challengeData.error || 'Respuesta vacía'}`, 'error');
+                return;
+            }
+
+            console.log(challengeData)
+            // 2. CÁLCULO DE RESPUESTA EN EL CLIENTE
+            // NOTA IMPORTANTE: La lógica del backend espera: SHA256(hash_db + challenge)
+            // Ya que el cliente NO conoce el hash_db (hash Argon2), 
+            // ASUMIMOS para esta DEMO que la contraseña PLANA es el valor esperado para el hash_db.
+            
+            
+            const dataToHash = password + challengeData.challenge;
+            
+            // Aplicar SHA-256 (debe coincidir con la implementación sha256 de Rust)
+            const password_sha = CryptoJS.SHA256(dataToHash).toString(); 
+
+            console.log(password_sha);
+            
+            updateStatus("2. Hash calculado. Enviando respuesta...");
+            
+            // 3. ENVIAR VALIDACIÓN (POST /auth/validate)
+            const validationResult = await sendValidation(
+                serverUrl, 
+                username, 
+                password_sha
+            );
+            
+            // 4. MOSTRAR RESULTADO
+            if (validationResult && validationResult.validation === true) {
+                updateStatus("✅ Autenticación Exitosa!", 'success');
+                alert("Validación: EXITOSA!");
+            } else {
+                updateStatus("❌ Fallo en la Validación (Credenciales Incorrectas o Challenge Expirado).", 'error');
+                alert("Validación: FALLIDA. Respuesta del servidor: " + JSON.stringify(validationResult));
+            }
+
+        } catch (e) {
+            updateStatus(`Error crítico de red o servidor: ${e.message}`, 'error');
+            alert("Error: " + e.message);
+        }
+    }
+
+    /**
+     * Realiza la llamada GET para obtener el Challenge.
+     */
+    async function fetchChallenge(serverUrl) {
+        const url = `${serverUrl}${ENDPOINT_CHALLENGE}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Fallo en la red (Status: ${response.status})`);
+        }
+        return response.json();
+    }
+
+    /**
+     * Realiza la llamada POST para enviar la respuesta hasheada.
+     */
+    async function sendValidation(serverUrl, username, password) {
+        const url = `${serverUrl}${ENDPOINT_VALIDATE}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password // El valor hasheado SHA-256
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Fallo en la validación (Status: ${response.status})`);
+        }
+        return response.json();
+    }
+
+    // Inicializar la IP al cargar
+    document.addEventListener('DOMContentLoaded', updateServerIp);
+</script>
+
 </body>
 </html>

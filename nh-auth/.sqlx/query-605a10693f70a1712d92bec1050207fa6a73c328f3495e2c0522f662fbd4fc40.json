@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        -- Seleccionar solo la columna 'password'\n        SELECT password\n        FROM accounts \n        WHERE name = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "password",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "605a10693f70a1712d92bec1050207fa6a73c328f3495e2c0522f662fbd4fc40"
+}

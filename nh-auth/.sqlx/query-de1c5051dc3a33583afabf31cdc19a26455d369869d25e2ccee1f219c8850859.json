@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO accounts (name, password, role) \n        VALUES ($1, $2, $3)\n        RETURNING id, name, password, ip, mac, role\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "password",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "ip",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "mac",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "role",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "de1c5051dc3a33583afabf31cdc19a26455d369869d25e2ccee1f219c8850859"
+}
