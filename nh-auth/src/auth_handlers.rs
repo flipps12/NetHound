@@ -2,9 +2,9 @@ use axum::{Json, extract::{ConnectInfo, State}, http::StatusCode};
 use serde_json::Value;
 use sqlx::SqlitePool;
 use std::net::SocketAddr;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+// use std::collections::HashMap;
+// use std::sync::Arc;
+// use tokio::sync::RwLock;
 
 use crate::{AppError, AppState, database::{read_account_by_name, read_account_password_by_name}, utils::sha256};
 use crate::database::create_account;
@@ -12,7 +12,7 @@ use crate::database::create_account;
 
 
 // Tipo del estado
-pub type _ChallengeStore = Arc<RwLock<HashMap<String, String>>>;
+// pub type _ChallengeStore = Arc<RwLock<HashMap<String, String>>>;
 
 pub async fn get_challenge(
     ConnectInfo(ip): ConnectInfo<SocketAddr>,

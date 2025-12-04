@@ -7,9 +7,8 @@ use crate::{GlobalConfig, dtos::Account};
 pub async fn initialize_db(config: &GlobalConfig) -> Result<SqlitePool, sqlx::Error> {
     let db_url = format!("sqlite:{}", config.database.path);
     
-    // Crear el directorio si no existe (importante para SQLite)
+    // Crear el directorio si no existe
     if let Some(parent_dir) = Path::new(&config.database.path).parent() {
-        // Ignoramos el error si el directorio ya existe
         let _ = tokio::fs::create_dir_all(parent_dir).await; 
     }
 
