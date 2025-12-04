@@ -1,14 +1,12 @@
-use axum::{Json, extract::{ConnectInfo, State}};
+use axum::{Json, extract::{ConnectInfo, State}, http::StatusCode};
 use serde_json::Value;
 use sqlx::SqlitePool;
-
 use std::net::SocketAddr;
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::{AppError, AppState, database::read_account_by_name, utils::sha256};
+use crate::{AppError, AppState, database::{read_account_by_name, read_account_password_by_name}, utils::sha256};
 use crate::database::create_account;
 
 
@@ -62,11 +60,17 @@ pub async fn validate_user(
     let challenge = challenge_opt.unwrap();
 
     // Recuperar hash de usuario desde DB
-    let password_db = read_account_by_name(pool, username).await?;
+    let password_db = read_account_password_by_name(pool, username).await?;
 
     let expected = sha256(format!("{}{}", password_db, challenge));
 
     println!("challenge: {} - hash db: {}\n - expected: {} - password: {}", challenge, password_db, expected, password);
+
+    // enviar ip a nh-approval-queue
+
+    //
+
+    //
 
     Ok(Json(serde_json::json!({
         "validation": expected == password // responder con jwt o similar
@@ -90,6 +94,7 @@ pub async fn create_user(
     // logica de "auth"
 
     // Hash con Argon2
+
     create_account(pool, username, password, role).await?;
 
     Ok(Json(serde_json::json!({

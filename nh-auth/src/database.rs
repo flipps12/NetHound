@@ -56,7 +56,7 @@ pub async fn create_account(pool: &SqlitePool, name: &str, password: &str, role:
     Ok(Account {
         id: result.id,
         name: result.name,
-        password: result.password,
+        password: Some(result.password),
         ip: result.ip,
         mac: result.mac,
         role: result.role
@@ -70,7 +70,7 @@ pub async fn read_all_accounts(pool: &SqlitePool) -> Result<Vec<Account>, sqlx::
         .await
 }
 
-pub async fn read_account_by_name(pool: &SqlitePool, username: &str) -> Result<String, sqlx::Error> {
+pub async fn read_account_password_by_name(pool: &SqlitePool, username: &str) -> Result<String, sqlx::Error> {
     
     let result = sqlx::query!(
         r#"
@@ -86,6 +86,33 @@ pub async fn read_account_by_name(pool: &SqlitePool, username: &str) -> Result<S
     match result {
         Some(record) => Ok(record.password),
         _none => Err(sqlx::Error::RowNotFound),
+    }
+}
+
+pub async fn read_account_by_name(pool: &SqlitePool, username: &str) -> Result<Option<Account>, sqlx::Error> {
+    
+    let result = sqlx::query!(
+        r#"
+        SELECT id, role, ip, mac
+        FROM accounts 
+        WHERE name = $1
+        "#,
+        username
+    )
+    .fetch_optional(pool) // Devuelve Option<Record>
+    .await?;
+
+    // Accedemos a los campos DENTRO del match
+    match result {
+        Some(record) => Ok(Some(Account {
+            id: record.id,
+            name: username.to_string(), // Tomamos el nombre del argumento de la función
+            password: None,             // Lo dejamos vacío o None
+            ip: record.ip,
+            mac: record.mac,
+            role: record.role,
+        })),
+        None => Ok(None), // Si no se encuentra, devolvemos Ok(None)
     }
 }
 

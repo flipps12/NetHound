@@ -6,7 +6,7 @@ use sqlx::FromRow;
 pub struct Account {
     pub id: i64,
     pub name: String,
-    pub password: String,
+    pub password: Option<String>,
     pub ip: Option<String>,
     pub mac: Option<String>,
     pub role: String,

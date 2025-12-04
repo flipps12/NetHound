@@ -22,7 +22,6 @@ use tokio::sync::RwLock;
 use config_global::{GlobalConfig, load_global_config};
 use database::initialize_db;
 
-pub static CONFIG: OnceLock<Arc<GlobalConfig>> = OnceLock::new();
 
 // Define una struct de error simple
 #[derive(Debug)]
@@ -37,13 +36,13 @@ impl From<anyhow::Error> for AppError {
 
 impl From<sqlx::Error> for AppError {
     fn from(err: sqlx::Error) -> Self {
-        // Usamos .into() para convertir sqlx::Error a anyhow::Error,
-        // y luego usamos el constructor AppError(anyhow::Error)
+        // .into() para convertir sqlx::Error a anyhow::Error,
+        // y luego el constructor AppError(anyhow::Error)
         AppError(err.into()) 
     }
 }
 
-// Implementa IntoResponse para que AppError sepa cómo responder a Axum
+// IntoResponse para que AppError sepa cómo responder a Axum
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         // En un entorno de producción, NO debes exponer el error interno (self.0).
@@ -60,8 +59,10 @@ impl IntoResponse for AppError {
 pub struct AppState {
     pub db_pool: SqlitePool,
     pub challenge_store: Arc<RwLock<HashMap<String, String>>>,
-    // Aquí puedes agregar Arc<GlobalConfig> si es necesario
+    // agregar Arc<GlobalConfig> si es necesario
 }
+
+pub static CONFIG: OnceLock<Arc<GlobalConfig>> = OnceLock::new();
 
 #[tokio::main]
 async fn main() {
@@ -73,7 +74,7 @@ async fn main() {
         }
     };
 
-    //
+    // Configuracion global
     let config_arc = Arc::new(config);
 
     // .set() intenta establecer el valor una sola vez. Si ya está establecido, devuelve un error.
@@ -92,7 +93,6 @@ async fn main() {
     };
 
     let cors = CorsLayer::new()
-    // Permite cualquier origen (solo para desarrollo)
         .allow_origin(Any) 
         .allow_methods(Any)
         .allow_headers(Any);
