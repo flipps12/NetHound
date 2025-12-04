@@ -1,0 +1,5 @@
+# /etc/NetHound.conf
+
+
+[database]
+path = "/var/lib/NetHound/auth_accounts.db"
